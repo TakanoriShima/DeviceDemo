@@ -1,0 +1,145 @@
+gem install ruby
+gem install rails
+
+sudo yum install postgresql postgresql-server postgresql-devel postgresql-contrib
+y
+sudo service postgresql initdb
+sudo service postgresql start
+sudo -u postgres createuser -s ec2-user
+sudo -u postgres psql
+
+---
+# https://qiita.com/Orangina1050/items/a16e655519a60f35b394
+
+rails new devise_app -d postgresql
+cd devise_app/
+rails db:create
+
+rails g controller comments index
+
+# config/routes.rb
+root 'comments#index' # ここを追記します
+get 'comments/index' # 自動で設定されたルーティング
+
+# Gemfile
+gem 'devise' # gemfileの一番下に記述
+
+bundle install
+
+# deviseの設定ファイルを作成する
+rails g devise:install 
+
+# ログイン機能用のモデルを作成
+rails g devise user
+# User.rb :モデル、migrationファイルも作成されることに注意
+
+rails db:migrate
+
+## users テーブルの構造
+devise_app_development=# select * from users;
+ id | email | encrypted_password | reset_password_token | reset_password_sent_at | remember_created_at | created_at | updated_at 
+
+# ログイン機能に必要なビューファイルをまとめて作成
+rails g devise:views
+
+# 生成されるファイル群のうち、以下の2つが大切
+# 新規登録画面：app/views/devise/registrations/new.html.erb
+# ログイン画面：app/views/devise/sessions/new.html.erb
+
+# views/comments/index.html.erb
+<h1>ログインアプリ</h1>
+
+<% if user_signed_in? %> <!-- ユーザーがログインしているか調べる -->
+  <!-- ユーザーがログインしていた時の処理 -->
+
+  <h4> メールアドレス： <%= current_user.email %> </h4>
+  <%= link_to "ログアウト", destroy_user_session_path, method: :delete %> <!-- ログアウトをする -->
+<% else %>
+  <!-- ユーザーがログインしていなかった時の処理 -->
+  <h2> 現在ログインしていません </h2>
+  <%= link_to "ログイン", new_user_session_path, class: 'post' %> <!-- ログイン画面に移行する -->
+  <%= link_to "新規登録", new_user_registration_path, class: 'post' %> <!-- 新規登録画面に移行する -->
+<% end %>
+--
+# 基本的な機能は動く
+rails s
+# routingを見ると、大量に自動設定されている。
+# user_signed_in, current_userなどは自動的に使える
+
+--
+# usersテーブルにnameカラムをstring型で追加するマイグレーションファイルを作成
+rails g migration AddNameToUsers name:string
+
+# カラム追加
+rails db:migrate
+
+# app/views/devise/registrations/new.html.erb 
+<h2>Sign up</h2>
+
+<%= form_for(resource, as: resource_name, url: registration_path(resource_name)) do |f| %>
+  <%= devise_error_messages! %>
+
+  <div class="field">
+    <%= f.label :email %><br />
+    <%= f.email_field :email, autofocus: true, autocomplete: "email" %>
+  </div>
+
+  <!-- ここから追加してください -->
+  <div class="field">
+    <%= f.label :name %> <br />
+    <%= f.text_field :name %>
+  </div>
+  <!-- ここまで追加してください -->
+
+  <div class="field">
+    <%= f.label :password %>
+    <% if @minimum_password_length %>
+    <em>(<%= @minimum_password_length %> characters minimum)</em>
+    <% end %><br />
+    <%= f.password_field :password, autocomplete: "new-password" %>
+  </div>
+
+  <div class="field">
+    <%= f.label :password_confirmation %><br />
+    <%= f.password_field :password_confirmation, autocomplete: "new-password" %>
+  </div>
+
+  <div class="actions">
+    <%= f.submit "Sign up" %>
+  </div>
+<% end %>
+
+<%= render "devise/shared/links" %>
+
+# app/controllers/application_controller
+
+class ApplicationController < ActionController::Base
+  protect_from_forgery with: :exception
+
+  # ここから追加します
+  before_action :configure_permitted_parameters, if: :devise_controller?
+
+  def configure_permitted_parameters
+    devise_parameter_sanitizer.permit(:sign_up, keys: [:name]) # 新規登録時(sign_up時)にnameというキーのパラメーターを追加で許可する
+  end
+  # ここまで追加します
+end
+
+# views/comments/index.html.erb
+<h1>ログインアプリ</h1>
+
+<% if user_signed_in? %> <!-- ユーザーがログインしているか調べる -->
+  <!-- ユーザーがログインしていた時の処理 -->
+  <h2> 現在 <%= current_user.name %> さんがログインしています </h2> <!-- ここを追加します -->
+  <h4> メールアドレス： <%= current_user.email %> </h4>
+  <%= link_to "ログアウト", destroy_user_session_path, method: :delete %> <!-- ログアウトをする -->
+<% else %>
+  <!-- ユーザーがログインしていなかった時の処理 -->
+  <h2> 現在ログインしていません </h2>
+  <%= link_to "ログイン", new_user_session_path, class: 'post' %> <!-- ログイン画面に移行する -->
+  <%= link_to "新規登録", new_user_registration_path, class: 'post' %> <!-- 新規登録画面に移行する -->
+<% end %>
+
+
+
+
